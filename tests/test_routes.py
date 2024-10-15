@@ -123,4 +123,75 @@ class TestAccountService(TestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
 
-    # ADD YOUR TEST CASES HERE ...
+    def test_list_accounts(self):
+        """It should List all Accounts in the database"""
+        # Test empty database
+        response = self.client.get(BASE_URL)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.get_json()
+        self.assertEqual(data, [])
+        
+        # Test populated database
+        self._create_accounts(10)
+        response = self.client.get(BASE_URL)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.get_json()
+        self.assertEqual(len(data), 10)
+
+    def test_read_account(self):
+        """It should Get a single Account"""
+        # Test when account does not exist
+        response = self.client.get(f"{BASE_URL}/42")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        data = response.get_json()
+        self.assertEqual(data, [])
+
+        # Test when account exists
+        test_account = self._create_accounts(1)[0]
+        response = self.client.get(f"{BASE_URL}/{test_account.id}")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.get_json()
+        self.assertIsInstance(data, dict)
+        self.assertEqual(data["name"], test_account.name)
+
+    def test_update_product(self):
+        """It should Update an Account"""
+        test_account = AccountFactory()
+        response = self.client.post(BASE_URL, json=test_account.serialize())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        new_account = response.get_json()
+        new_account["name"] = "lsdjflksd"
+
+        # If account exists
+        response = self.client.put(f"{BASE_URL}/{new_account['id']}", json=new_account)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        updated_account = response.get_json()
+        self.assertEqual(updated_account["name"], "lsdjflksd")
+
+        # If acount does not exist
+        response = self.client.put(f"{BASE_URL}/{int(new_account['id']) + 100}", json=new_account)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_delete_account(self):
+        """It should Delete an Account"""
+        account_count = 10
+        accounts = self._create_accounts(account_count)
+        test_account = accounts[0]
+
+        # Test account found
+        response = self.client.delete(f"{BASE_URL}/{test_account.id}")
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(len(response.data), 0)
+
+        response = self.client.get(f"{BASE_URL}/{test_account.id}")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        response = self.client.get(BASE_URL)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.get_json()
+        self.assertEqual(len(data), account_count-1)
+
+        # Test account not found
+        response = self.client.delete(f"{BASE_URL}/{test_account.id}")
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(len(response.data), 0)
